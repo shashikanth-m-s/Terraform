@@ -1,0 +1,70 @@
+trigger: none
+schedules:
+  branches:
+    include:
+      - master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  azureSubscription: '<your-service-connection-name>'
+  resourceGroupNameProd: 'prod-resource-group'
+  resourceGroupNameNonProd: 'nonprod-resource-group'
+  locationProd: 'eastus'
+  locationNonProd: 'westus'
+  storageAccountNameProd: 'prodstorageaccount'
+  storageAccountNameNonProd: 'nonprodstorageacct'
+
+stages:
+- stage: Deploy_Prod
+  displayName: 'Deploy to Production Environment'
+  jobs:
+  - job: Terraform_Apply_Prod
+    displayName: 'Terraform Apply for Prod Environment'
+    steps:
+    - task: UseTerraform@0
+      displayName: 'Install Terraform'
+      inputs:
+        command: 'init'
+        workingDirectory: 'terraform/prod'
+
+    - task: UseTerraform@0
+      displayName: 'Run Terraform Plan'
+      inputs:
+        command: 'plan'
+        workingDirectory: 'terraform/prod'
+        commandOptions: '-out=tfplan'
+
+    - task: UseTerraform@0
+      displayName: 'Run Terraform Apply'
+      inputs:
+        command: 'apply'
+        workingDirectory: 'terraform/prod'
+        commandOptions: '-auto-approve tfplan'
+
+- stage: Deploy_NonProd
+  displayName: 'Deploy to Non-Production Environment'
+  jobs:
+  - job: Terraform_Apply_NonProd
+    displayName: 'Terraform Apply for Non-Prod Environment'
+    steps:
+    - task: UseTerraform@0
+      displayName: 'Install Terraform'
+      inputs:
+        command: 'init'
+        workingDirectory: 'terraform/nonprod'
+
+    - task: UseTerraform@0
+      displayName: 'Run Terraform Plan'
+      inputs:
+        command: 'plan'
+        workingDirectory: 'terraform/nonprod'
+        commandOptions: '-out=tfplan'
+
+    - task: UseTerraform@0
+      displayName: 'Run Terraform Apply'
+      inputs:
+        command: 'apply'
+        workingDirectory: 'terraform/nonprod'
+        commandOptions: '-auto-approve tfplan'
