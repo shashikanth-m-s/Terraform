@@ -2,19 +2,24 @@ provider "azurerm" {
   features {}
 }
 
-variable "resource_group_name" {}
-variable "location" {}
-variable "storage_account_name" {}
-
+# Create a resource group
 resource "azurerm_resource_group" "rg" {
-  name     = var.resource_group_name
-  location = var.location
+  name     = "myResourceGroup"
+  location = "East US"
 }
 
+# Create a storage account
 resource "azurerm_storage_account" "storage" {
-  name                     = var.storage_account_name
+  name                     = "smsstorageaccountkanthams"
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+}
+
+# Add a resource lock to the resource group
+resource "azurerm_management_lock" "rg_lock" {
+  name       = "xyz-lock-name"  # Replace with your desired lock name
+  scope      = azurerm_resource_group.rg.id
+  lock_level = "CanNotDelete"   # Options: "CanNotDelete" or "ReadOnly"
 }

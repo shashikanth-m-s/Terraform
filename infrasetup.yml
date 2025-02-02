@@ -1,70 +1,63 @@
-trigger: none
-schedules:
-  branches:
-    include:
-      - master
+trigger:
+- main  # Trigger the pipeline on changes to the main branch
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'ubuntu-latest'  # Use an Ubuntu agent (you can also use 'windows-latest')
 
 variables:
-  azureSubscription: 'smsinfra'
-  resourceGroupNameProd: 'SMS-PRD-01'
-  # resourceGroupNameNonProd: 'nonprod-resource-group'
-  locationProd: 'eastus'
-  # locationNonProd: 'westus'
-  storageAccountNameProd: 'smsprodstorageaccountms'
-  # storageAccountNameNonProd: 'nonprodstorageacct'
+  terraformVersion: '1.10.5'  # Specify the Terraform version
+  azureServiceConnection: 'smsinfra'  # Replace with your Azure service connection name
+  storageAccountName: 'smsstrgprd'  # Name of the storage account
+  containerName: 'devops'  # Name of the container
+  key: 'terraform.tfstate'  # Name of the state file
 
-stages:
-- stage: Deploy_Prod
-  displayName: 'Deploy to Production Environment'
-  jobs:
-  - job: Terraform_Apply_Prod
-    displayName: 'Terraform Apply for Prod Environment'
-    steps:
-    - task: UseTerraform@0
-      displayName: 'Install Terraform'
-      inputs:
-        command: 'init'
-        workingDirectory: 'terraform/prod'
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.x'  # Python is required for the Terraform task
 
-    - task: UseTerraform@0
-      displayName: 'Run Terraform Plan'
-      inputs:
-        command: 'plan'
-        workingDirectory: 'terraform/prod'
-        commandOptions: '-out=tfplan'
+- task: TerraformInstaller@0
+  inputs:
+    terraformVersion: $(terraformVersion)  # Install the specified Terraform version
 
-    - task: UseTerraform@0
-      displayName: 'Run Terraform Apply'
-      inputs:
-        command: 'apply'
-        workingDirectory: 'terraform/prod'
-        commandOptions: '-auto-approve tfplan'
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: $(azureServiceConnection)  # Authenticate using the Azure service connection
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Logged into Azure using service connection: $(azureServiceConnection)"
+      az account show  # Display the Azure subscription details
 
-# - stage: Deploy_NonProd
-#   displayName: 'Deploy to Non-Production Environment'
-#   jobs:
-#   - job: Terraform_Apply_NonProd
-#     displayName: 'Terraform Apply for Non-Prod Environment'
-#     steps:
-#     - task: UseTerraform@0
-#       displayName: 'Install Terraform'
-#       inputs:
-#         command: 'init'
-#         workingDirectory: 'terraform/nonprod'
+- task: TerraformTaskV2@2
+  inputs:
+    provider: 'azurerm'
+    command: 'init'
+    workingDirectory: '$(Build.SourcesDirectory)'  # Initialize Terraform in the repo root
+    backendServiceArm: $(azureServiceConnection)
+    backendAzureRmResourceGroupName: $(resourceGroupName)  # Resource group of the storage account
+    backendAzureRmStorageAccountName: $(storageAccountName)  # Name of the storage account
+    backendAzureRmContainerName: $(containerName)  # Name of the container
+    backendAzureRmKey: $(key)
 
-#     - task: UseTerraform@0
-#       displayName: 'Run Terraform Plan'
-#       inputs:
-#         command: 'plan'
-#         workingDirectory: 'terraform/nonprod'
-#         commandOptions: '-out=tfplan'
+- task: TerraformTaskV2@2
+  inputs:
+    provider: 'azurerm'
+    command: 'validate'
+    workingDirectory: '$(Build.SourcesDirectory)'  # Validate the Terraform configuration
+    environmentServiceNameAzureRM: $(azureServiceConnection)
 
-#     - task: UseTerraform@0
-#       displayName: 'Run Terraform Apply'
-#       inputs:
-#         command: 'apply'
-#         workingDirectory: 'terraform/nonprod'
-#         commandOptions: '-auto-approve tfplan'
+- task: TerraformTaskV2@2
+  inputs:
+    provider: 'azurerm'
+    command: 'plan'
+    workingDirectory: '$(Build.SourcesDirectory)'  # Generate the Terraform plan
+    environmentServiceNameAzureRM: $(azureServiceConnection)
+
+- task: TerraformTaskV2@2
+  inputs:
+    provider: 'azurerm'
+    command: 'apply'
+    workingDirectory: '$(Build.SourcesDirectory)'  # Apply the Terraform configuration
+    environmentServiceNameAzureRM: $(azureServiceConnection)  # Use the Azure service connection for authentication
+    commandOptions: '-auto-approve'  # Automatically approve the apply step
